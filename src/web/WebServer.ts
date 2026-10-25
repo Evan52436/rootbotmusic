@@ -396,14 +396,16 @@ export class WebServer {
   }
 
   private registerStaticSpa(): void {
-    if (fs.existsSync(config.publicDir)) {
-      this.app.use(express.static(config.publicDir));
+    const webDist = path.resolve(config.rootDir, "web/dist");
+    const staticDir = fs.existsSync(webDist) ? webDist : config.publicDir;
+    if (fs.existsSync(staticDir)) {
+      this.app.use(express.static(staticDir));
       this.app.get("*", (req: Request, res: Response, next) => {
         if (req.path.startsWith("/api/") || req.path === "/ws") {
           next();
           return;
         }
-        const indexHtml = path.join(config.publicDir, "index.html");
+        const indexHtml = path.join(staticDir, "index.html");
         if (fs.existsSync(indexHtml)) {
           res.sendFile(indexHtml);
           return;
