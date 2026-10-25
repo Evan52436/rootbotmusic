@@ -35,9 +35,13 @@ async function apiRequest<T = any>(
     headers: { "Content-Type": "application/json" },
     ...options,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.error || `Request failed (${res.status})`);
+  const contentType = res.headers.get("content-type") || "";
+  if (!res.ok || contentType.includes("text/html")) {
+    throw new Error(`Request failed (${res.status})`);
+  }
+  const data = await res.json();
+  if (data?.error) {
+    throw new Error(data.error);
   }
   return data as T;
 }
@@ -85,11 +89,11 @@ export function useMusicStudio() {
     // Initial HTTP fetch so first paint doesn't wait for WS handshake
     apiRequest<PlayerState>("/api/state")
       .then((initial) => {
-        if (disposed) return;
+        if (disposed || !initial || !Array.isArray(initial.queue)) return;
         setState(initial);
-        setLivePosition(initial.positionSec);
+        setLivePosition(initial.positionSec || 0);
         lastSyncRef.current = {
-          pos: initial.positionSec,
+          pos: initial.positionSec || 0,
           ts: Date.now(),
           playing: initial.status === "playing",
         };
@@ -98,12 +102,25 @@ export function useMusicStudio() {
 
     const connect = () => {
       if (disposed) return;
-      const wsUrl = getWsUrl();
-      ws = new WebSocket(wsUrl);
+      try {
+        const wsUrl = getWsUrl();
+        // Do not attempt connecting to a non-existent local WebSocket on static hosts like Vercel
+        if (
+          !API_BASE &&
+          (window.location.hostname.endsWith(".vercel.app") ||
+            window.location.hostname.endsWith(".pages.dev"))
+        ) {
+          return;
+        }
+        ws = new WebSocket(wsUrl);
 
-      ws.onopen = () => {
-        setWsConnected(true);
-      };
+        ws.onopen = () => {
+          setWsConnected(true);
+        };
+
+        ws.onerror = () => {
+          // Silent ignore
+        };
 
       ws.onmessage = (ev) => {
         try {
@@ -144,11 +161,14 @@ export function useMusicStudio() {
 
       ws.onclose = () => {
         setWsConnected(false);
-        if (!disposed) {
-          reconnectTimer = window.setTimeout(connect, 1800);
+        if (!disposed && API_BASE) {
+          reconnectTimer = window.setTimeout(connect, 2500);
         }
       };
-    };
+    } catch {
+      // Ignore connection error when running standalone without remote backend
+    }
+  };
 
     connect();
 

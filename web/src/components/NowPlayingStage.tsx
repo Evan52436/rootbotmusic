@@ -276,8 +276,8 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
                 >
                   <ListMusic size={16} />
                   <span>Up Next Queue</span>
-                  {Boolean(state?.queue.length) && (
-                    <span className="menu-badge">{state?.queue.length}</span>
+                  {Boolean(state?.queue?.length) && (
+                    <span className="menu-badge">{state?.queue?.length}</span>
                   )}
                   <span className="kbd-shortcut">Q</span>
                 </button>
@@ -407,7 +407,7 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
             type="button"
             className="control-play-circle-btn"
             onClick={onTogglePlay}
-            disabled={!track && !state?.queue.length}
+            disabled={!track && !state?.queue?.length}
             title={isPlaying ? "Pause (Space)" : "Play (Space)"}
           >
             {isLoading ? (
@@ -423,7 +423,7 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
             type="button"
             className="control-nav-btn"
             onClick={onSkip}
-            disabled={!track && !state?.queue.length}
+            disabled={!track && !state?.queue?.length}
             title="Next Track (N / Right)"
           >
             <SkipForward size={22} fill="currentColor" />

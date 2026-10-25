@@ -177,8 +177,9 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                 const distance = idx - activeIndex;
 
                 // Character-weighted word timing for letter-by-letter horizontal sweep effect
-                const words = line.text.split(" ");
-                const totalChars = words.reduce(
+                const words = line.text.trim().split(/\s+/).filter(Boolean);
+                const safeWords = words.length > 0 ? words : [line.text || "♪"];
+                const totalChars = safeWords.reduce(
                   (acc, w) => acc + Math.max(1, w.length),
                   0
                 );
@@ -194,17 +195,17 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                   nextLine?.time !== undefined
                     ? nextLine.time
                     : line.time !== undefined
-                      ? lineStartTime + Math.max(2.5, words.length * 0.65)
+                      ? lineStartTime + Math.max(2.5, safeWords.length * 0.65)
                       : ((idx + 1) / Math.max(1, lyricsData.lines.length)) * totalTrackDur;
 
                 const lineDur = Math.max(0.6, lineEndTime - lineStartTime);
 
                 let charAccum = 0;
-                const wordRanges = words.map((w) => {
+                const wordRanges = safeWords.map((w) => {
                   const chars = Math.max(1, w.length);
-                  const startRatio = charAccum / totalChars;
+                  const startRatio = charAccum / Math.max(1, totalChars);
                   charAccum += chars;
-                  const endRatio = charAccum / totalChars;
+                  const endRatio = charAccum / Math.max(1, totalChars);
                   return {
                     startSec: lineStartTime + startRatio * lineDur,
                     endSec: lineStartTime + endRatio * lineDur,
@@ -251,7 +252,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                     }
                   >
                     <div className="blyrics-word-group">
-                      {words.map((word, wIdx) => {
+                      {safeWords.map((word, wIdx) => {
                         const range = wordRanges[wIdx];
                         let fillPct = 0;
                         if (isPast) {

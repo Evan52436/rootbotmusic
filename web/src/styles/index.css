@@ -118,35 +118,28 @@ html, body {
   display: flex;
   align-items: center;
   width: 100%;
-  height: 42px;
+  height: 44px;
   border-radius: 999px;
-  border: 1.5px solid #ffffff; /* Solid outline */
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.22) 0%,
-    rgba(255, 255, 255, 0.06) 100%
-  );
-  backdrop-filter: blur(28px) saturate(1.8);
-  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+  border: 1.5px solid rgba(255, 255, 255, 0.7); /* Solid crisp outline */
+  background: rgba(255, 255, 255, 0.12); /* Liquid translucent glass */
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
   box-shadow:
-    inset 0 1px 2px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.15),
-    0 8px 32px rgba(0, 0, 0, 0.28);
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.12),
+    0 8px 32px rgba(0, 0, 0, 0.24);
   padding: 0 18px;
   transition: all 0.25s ease;
 }
 
+.search-input-box:hover,
 .search-input-box:focus-within {
   border: 1.5px solid #ffffff !important;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.32) 0%,
-    rgba(255, 255, 255, 0.12) 100%
-  ) !important;
+  background: rgba(255, 255, 255, 0.22) !important;
   box-shadow:
     inset 0 1px 3px 0 rgba(255, 255, 255, 0.65),
-    0 0 20px rgba(255, 255, 255, 0.35),
-    0 12px 36px rgba(0, 0, 0, 0.35);
+    0 0 20px rgba(255, 255, 255, 0.3),
+    0 12px 36px rgba(0, 0, 0, 0.32);
 }
 
 .search-lead-icon {
@@ -200,44 +193,7 @@ html, body {
   margin-left: 6px;
 }
 
-/* Plain white idle state */
-.no-track .search-input-box {
-  border: 1.5px solid #182230;
-  background: linear-gradient(
-    135deg,
-    rgba(248, 250, 252, 0.8) 0%,
-    rgba(241, 245, 249, 0.55) 100%
-  );
-  box-shadow:
-    inset 0 1px 2px rgba(255, 255, 255, 0.8),
-    0 4px 16px rgba(0, 0, 0, 0.08);
-}
 
-.no-track .search-input-box:focus-within {
-  border-color: #000000 !important;
-  background: #ffffff !important;
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.15);
-}
-
-.no-track .top-search-input {
-  color: #182230;
-}
-
-.no-track .top-search-input::placeholder {
-  color: #64748b;
-}
-
-.no-track .search-lead-icon {
-  color: #182230;
-}
-
-.no-track .search-clear-btn {
-  color: #64748b;
-}
-
-.no-track .search-clear-btn:hover {
-  color: #182230;
-}
 
 /* Dropdown Search Results Overlay: Liquid Glass with Crisp Outline */
 .search-results-dropdown {
@@ -1083,6 +1039,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 32px;
+  padding: calc(45vh - 60px) 0; /* Ensures active line is centered horizontally/vertically */
 }
 
 /* Scoped to lyrics lines: Viewport units (vw) so sizing stays consistent on Linux and Windows (125%/150% scaling) */
@@ -1094,54 +1051,54 @@ html, body {
   line-height: 1.38;
   cursor: pointer;
   transform-origin: left center;
-  transition: filter 0.45s 0s, opacity 0.45s 0s, transform 0.25s ease !important;
+  transition: filter 0.35s ease, opacity 0.35s ease, transform 0.25s ease !important;
 }
 
 /* Active line: sharp, fully visible with subtle drop shadow */
-.blyrics-container > .blyrics--line.blyrics--active {
+.blyrics-container .blyrics--line.blyrics--active {
   opacity: 1 !important;
-  filter: blur(0px) drop-shadow(0 2px 10px rgba(0, 0, 0, 0.45)) !important;
-  transform: scale(1.02) !important;
+  filter: blur(0px) drop-shadow(0 2px 14px rgba(0, 0, 0, 0.55)) !important;
+  transform: scale(1.03) !important;
 }
 
 /* Past lines (above active line): progressive blur & greying */
 .blyrics-container:not(.blyrics-user-scrolling) .blyrics--past.past-1 {
-  filter: blur(1.8px) !important;
-  opacity: 0.55 !important;
+  filter: blur(2.5px) !important;
+  opacity: 0.42 !important;
 }
 .blyrics-container:not(.blyrics-user-scrolling) .blyrics--past.past-2 {
-  filter: blur(3px) !important;
-  opacity: 0.38 !important;
+  filter: blur(5px) !important;
+  opacity: 0.24 !important;
 }
 .blyrics-container:not(.blyrics-user-scrolling) .blyrics--past.past-3 {
-  filter: blur(4.5px) !important;
-  opacity: 0.22 !important;
+  filter: blur(7.5px) !important;
+  opacity: 0.12 !important;
 }
 .blyrics-container:not(.blyrics-user-scrolling) .blyrics--past.past-far {
-  filter: blur(7px) !important;
-  opacity: 0.08 !important;
+  filter: blur(10px) !important;
+  opacity: 0.05 !important;
 }
 
 /* Upcoming lines (below active line): progressive blur & greying */
 .blyrics-container:not(.blyrics-user-scrolling) .blyrics--future.dist-1 {
-  filter: blur(1.8px) !important;
-  opacity: 0.65;
+  filter: blur(2.5px) !important;
+  opacity: 0.45 !important;
 }
 .blyrics-container:not(.blyrics-user-scrolling) .blyrics--future.dist-2 {
-  filter: blur(3px) !important;
-  opacity: 0.45;
+  filter: blur(5px) !important;
+  opacity: 0.26 !important;
 }
 .blyrics-container:not(.blyrics-user-scrolling) .blyrics--future.dist-3 {
-  filter: blur(4.5px) !important;
-  opacity: 0.30;
+  filter: blur(7.5px) !important;
+  opacity: 0.14 !important;
 }
 .blyrics-container:not(.blyrics-user-scrolling) .blyrics--future.dist-4 {
-  filter: blur(6px) !important;
-  opacity: 0.18;
+  filter: blur(9px) !important;
+  opacity: 0.08 !important;
 }
 .blyrics-container:not(.blyrics-user-scrolling) .blyrics--future.dist-far {
-  filter: blur(7.5px) !important;
-  opacity: 0.08;
+  filter: blur(11px) !important;
+  opacity: 0.04 !important;
 }
 
 /* Word styling: standard typographical spacing + smooth letter-by-letter horizontal wipe */
@@ -1152,7 +1109,7 @@ html, body {
 
 .blyrics--word {
   display: inline-block;
-  margin-right: 0.24em !important;
+  margin-right: 0.28em !important;
   vertical-align: baseline;
   background:
     linear-gradient(to right, #ffffff, #ffffff) no-repeat,
@@ -1190,7 +1147,7 @@ html, body {
   opacity: 0.85;
 }
 
-/* Bottom Right Button: A Bit Square Matching Request (Not a Pill) */
+/* Bottom Right Button: Liquid Glass with Solid Crisp Outline */
 .lyrics-bottom-toolbar {
   position: absolute;
   bottom: 20px;
@@ -1202,49 +1159,29 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 13px;
-  border-radius: 10px;
-  border: 1.5px solid #ffffff; /* Solid outline */
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.22) 0%,
-    rgba(255, 255, 255, 0.06) 100%
-  );
-  backdrop-filter: blur(28px) saturate(1.8);
-  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.7); /* Solid crisp outline */
+  background: rgba(255, 255, 255, 0.12); /* Liquid translucent glass */
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
   box-shadow:
-    inset 0 1px 2px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.15),
-    0 8px 32px rgba(0, 0, 0, 0.32);
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.12),
+    0 8px 32px rgba(0, 0, 0, 0.25);
   font-size: 0.74rem;
   font-weight: 600;
   color: #ffffff;
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
 }
 
 .better-lyrics-status-box:hover {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.32) 0%,
-    rgba(255, 255, 255, 0.12) 100%
-  );
+  border-color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.22) !important;
   box-shadow:
-    inset 0 1px 2px 0 rgba(255, 255, 255, 0.65),
-    0 0 16px rgba(255, 255, 255, 0.3),
-    0 12px 36px rgba(0, 0, 0, 0.4);
-}
-
-.no-track .better-lyrics-status-box {
-  border: 1.5px solid #182230;
-  background: linear-gradient(
-    135deg,
-    rgba(248, 250, 252, 0.8) 0%,
-    rgba(241, 245, 249, 0.55) 100%
-  );
-  color: #182230;
-  box-shadow:
-    inset 0 1px 2px rgba(255, 255, 255, 0.8),
-    0 4px 16px rgba(0, 0, 0, 0.08);
+    inset 0 1px 3px 0 rgba(255, 255, 255, 0.65),
+    0 0 18px rgba(255, 255, 255, 0.3),
+    0 12px 36px rgba(0, 0, 0, 0.35);
 }
 
 .source-tag,

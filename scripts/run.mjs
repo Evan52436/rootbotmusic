@@ -32,8 +32,15 @@ if (!fs.existsSync(entryFile)) {
   execSync("npm run build:server", { cwd: rootDir, stdio: "inherit" });
 }
 
+const webDistHtml = path.join(rootDir, "web", "dist", "index.html");
+const publicHtml = path.join(rootDir, "public", "index.html");
+if (!fs.existsSync(webDistHtml) && !fs.existsSync(publicHtml)) {
+  console.log("[runner] Building Web UI SPA dashboard...");
+  execSync("npm --prefix web run build", { cwd: rootDir, stdio: "inherit" });
+}
+
 let child;
-if (devToken && devToken !== "your_generated_dev_token_here") {
+if (devToken && devToken.length > 30 && devToken !== "your_generated_dev_token_here") {
   console.log("[runner] DEV_TOKEN found -> Launching via Root SDK DevHost (@rootsdk/server-bot + Web UI)...");
   const rootsdkBin = path.join(
     rootDir,
