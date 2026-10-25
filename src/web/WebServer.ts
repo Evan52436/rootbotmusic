@@ -1,4 +1,5 @@
 import http from "node:http";
+import https from "node:https";
 import path from "node:path";
 import fs from "node:fs";
 import cors from "cors";
@@ -352,16 +353,60 @@ export class WebServer {
       res.json({ ok: true, state: this.music.getState() });
     });
 
-    // Stream endpoint
+    // Stream endpoint: proxies high-bitrate audio directly to browsers without 403 / CORS errors
     this.app.get("/api/stream/:sourceId", async (req: Request, res: Response) => {
       try {
         const sourceId = String(req.params.sourceId);
         const direct = await this.music.providers.ytMusic.resolveDirectAudioUrl(
           sourceId
         );
-        res.redirect(direct.url);
+
+        // Forward Range requests for seamless browser seeking & chunk streaming
+        const reqHeaders: Record<string, string> = {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        };
+        if (req.headers.range) {
+          reqHeaders["Range"] = String(req.headers.range);
+        }
+
+        const client = direct.url.startsWith("https:") ? https : http;
+        const proxyReq = client.get(direct.url, { headers: reqHeaders }, (proxyRes) => {
+          res.status(proxyRes.statusCode || 200);
+          if (proxyRes.headers["content-type"]) {
+            res.setHeader("Content-Type", proxyRes.headers["content-type"]);
+          } else {
+            res.setHeader("Content-Type", direct.mimeType || "audio/webm");
+          }
+          if (proxyRes.headers["content-length"]) {
+            res.setHeader("Content-Length", proxyRes.headers["content-length"]);
+          }
+          if (proxyRes.headers["content-range"]) {
+            res.setHeader("Content-Range", proxyRes.headers["content-range"]);
+          }
+          if (proxyRes.headers["accept-ranges"]) {
+            res.setHeader("Accept-Ranges", proxyRes.headers["accept-ranges"]);
+          } else {
+            res.setHeader("Accept-Ranges", "bytes");
+          }
+          res.setHeader("Cache-Control", "public, max-age=3600");
+
+          proxyRes.pipe(res);
+        });
+
+        proxyReq.on("error", (err) => {
+          if (!res.headersSent) {
+            res.status(502).json({ error: "Stream proxy error: " + err.message });
+          }
+        });
+
+        req.on("close", () => {
+          proxyReq.destroy();
+        });
       } catch (err) {
-        res.status(500).json({ error: (err as Error)?.message });
+        if (!res.headersSent) {
+          res.status(500).json({ error: (err as Error)?.message });
+        }
       }
     });
 

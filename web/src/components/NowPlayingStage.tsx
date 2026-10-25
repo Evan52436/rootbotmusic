@@ -125,34 +125,72 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
+
     if (!track) {
       el.pause();
       el.removeAttribute("src");
+      el.load();
       return;
     }
+
     const streamUrl = `${API_BASE}/api/stream/${encodeURIComponent(track.sourceId)}`;
+
     if (el.dataset.trackId !== track.id) {
       el.dataset.trackId = track.id;
       el.src = streamUrl;
-      if (livePosition > 1) {
-        el.currentTime = livePosition;
-      }
+      el.preload = "auto";
+
+      const onMetadata = () => {
+        if (livePosition > 1) {
+          el.currentTime = livePosition;
+        }
+        if (isPlaying) {
+          el.play().catch(() => {
+            // If browser blocks autoplay, unlock on the first user interaction
+            const unlock = () => {
+              el.play().catch(() => {});
+            };
+            window.addEventListener("pointerdown", unlock, { once: true });
+            window.addEventListener("keydown", unlock, { once: true });
+          });
+        }
+      };
+
+      el.addEventListener("loadedmetadata", onMetadata, { once: true });
+      el.load();
     } else {
-      if (Math.abs(el.currentTime - livePosition) > 2) {
+      // If same track, only correct if drift is significant (> 2.5s) to avoid micro-stutters
+      if (el.readyState >= 2 && Math.abs(el.currentTime - livePosition) > 2.5) {
         el.currentTime = livePosition;
       }
     }
+  }, [track?.id, livePosition]);
+
+  // Handle play / pause transitions without interrupting stream buffering
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !track) return;
 
     if (isPlaying) {
-      el.play().catch(() => {});
+      if (el.paused) {
+        el.play().catch(() => {
+          const unlock = () => {
+            el.play().catch(() => {});
+          };
+          window.addEventListener("pointerdown", unlock, { once: true });
+          window.addEventListener("keydown", unlock, { once: true });
+        });
+      }
     } else {
-      el.pause();
+      if (!el.paused) {
+        el.pause();
+      }
     }
-  }, [track, isPlaying, livePosition]);
+  }, [isPlaying, track?.id]);
 
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.volume = Math.min(1, (state?.volume ?? 75) / 100);
+      audioRef.current.volume = Math.min(1, Math.max(0, (state?.volume ?? 75) / 100));
       audioRef.current.muted = Boolean(state?.muted) || browserAudioMuted;
     }
   }, [state?.volume, state?.muted, browserAudioMuted]);
