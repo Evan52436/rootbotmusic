@@ -35,7 +35,7 @@ export const config = {
   ).trim(),
 
   autoCreateVirtualMic:
-    (process.env.AUTO_CREATE_VIRTUAL_MIC || "true").toLowerCase() !== "false",
+    (process.env.AUTO_CREATE_VIRTUAL_MIC || "false").toLowerCase() === "true",
   defaultVolume: Math.max(
     0,
     Math.min(150, parseInt(process.env.DEFAULT_VOLUME || "75", 10) || 75)

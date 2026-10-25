@@ -52,7 +52,7 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
   onOpenAudioModal,
 }) => {
   const [scrubValue, setScrubValue] = useState<number | null>(null);
-  const [browserPreview, setBrowserPreview] = useState(false);
+  const [browserAudioMuted, setBrowserAudioMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const track = state?.currentTrack ?? null;
@@ -71,11 +71,11 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
     return "off";
   };
 
-  // Optional in-browser audio preview for remote listeners
+  // Browser Audio is the primary output: synchronizes automatically for everyone!
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
-    if (!browserPreview || !track) {
+    if (!track) {
       el.pause();
       el.removeAttribute("src");
       return;
@@ -84,20 +84,31 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
     if (el.dataset.trackId !== track.id) {
       el.dataset.trackId = track.id;
       el.src = streamUrl;
+      if (livePosition > 1) {
+        el.currentTime = livePosition;
+      }
+    } else {
+      // Re-align if browser audio drifts more than 2 seconds from the master timeline
+      if (Math.abs(el.currentTime - livePosition) > 2) {
+        el.currentTime = livePosition;
+      }
     }
+
     if (isPlaying) {
-      el.play().catch(() => {});
+      el.play().catch(() => {
+        // Handled: Autoplay policy may require a user click on mobile browsers
+      });
     } else {
       el.pause();
     }
-  }, [browserPreview, track, isPlaying]);
+  }, [track, isPlaying, livePosition]);
 
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = Math.min(1, (state?.volume ?? 75) / 100);
-      audioRef.current.muted = Boolean(state?.muted);
+      audioRef.current.muted = Boolean(state?.muted) || browserAudioMuted;
     }
-  }, [state?.volume, state?.muted]);
+  }, [state?.volume, state?.muted, browserAudioMuted]);
 
   const activeDeviceObj = state?.audioDevices.find(
     (d) => d.id === state.audioDevice
@@ -137,28 +148,19 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
 
           <div className="np-meta">
             <div className="np-broadcast-row">
-              <button
-                type="button"
-                className="broadcast-badge"
-                onClick={onOpenAudioModal}
-                title="Click to change Voice Mic or Audio Output device"
-              >
-                <Mic size={13} />
-                <span>
-                  {activeDeviceObj?.isVirtualMicSink
-                    ? `Broadcasting to Root Voice Mic (${state?.virtualMic.micDescription})`
-                    : `Output: ${activeDeviceObj?.name || state?.audioDevice || "System Default"}`}
-                </span>
-              </button>
+              <span className="broadcast-badge live-indicator">
+                <Headphones size={13} />
+                <span>Synchronized Browser Audio (HQ Stereo)</span>
+              </span>
 
               <button
                 type="button"
-                className={`preview-toggle ${browserPreview ? "active" : ""}`}
-                onClick={() => setBrowserPreview((v) => !v)}
-                title="Audio plays through the bot's Virtual Mic in Root Voice Chat. Toggle this only if you also want audio inside this browser tab."
+                className={`preview-toggle ${!browserAudioMuted ? "active" : ""}`}
+                onClick={() => setBrowserAudioMuted((v) => !v)}
+                title="Mute or unmute music in your local browser tab"
               >
-                <Headphones size={13} />
-                <span>{browserPreview ? "Browser Audio: ON" : "Browser Audio: OFF"}</span>
+                {!browserAudioMuted ? <Volume2 size={13} /> : <VolumeX size={13} />}
+                <span>{!browserAudioMuted ? "Audio: Active" : "Audio: Muted"}</span>
               </button>
             </div>
 

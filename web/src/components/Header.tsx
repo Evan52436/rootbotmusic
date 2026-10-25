@@ -3,9 +3,7 @@ import {
   Bot,
   Check,
   Edit3,
-  Mic,
   Radio,
-  Settings2,
   Users,
   Volume2,
   WifiOff,
@@ -33,10 +31,6 @@ export const Header: React.FC<HeaderProps> = ({
   const [draftName, setDraftName] = useState(nickname);
 
   const isPlaying = state?.status === "playing";
-  const isUsingVirtualMic = Boolean(
-    state?.virtualMic.active &&
-      state?.audioDevice === state?.virtualMic.mpvDeviceId
-  );
 
   const saveName = () => {
     onChangeNickname(draftName);
@@ -66,24 +60,15 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="header-pills">
-        {/* Voice / Mic Output Pill */}
-        <button
-          type="button"
-          className={`status-pill clickable ${
-            isUsingVirtualMic ? "pill-emerald" : "pill-amber"
-          }`}
-          onClick={() => onOpenModal("audio")}
-          title="Configure Voice Chat Virtual Mic & Audio Output"
+        {/* Browser Jukebox Mode Indicator */}
+        <div
+          className="status-pill pill-emerald"
+          title="Audio is streaming live through the browser to all connected listeners"
         >
-          {isUsingVirtualMic ? <Mic size={15} /> : <Volume2 size={15} />}
+          <Volume2 size={15} />
           <span className="pill-dot" />
-          <span>
-            {isUsingVirtualMic
-              ? `Voice Mic: ${state?.virtualMic.micDescription}`
-              : "Audio Routing Setup"}
-          </span>
-          <Settings2 size={14} className="pill-chevron" />
-        </button>
+          <span>Browser Jukebox: Active</span>
+        </div>
 
         {/* Root Chat Bot Pill */}
         <button
