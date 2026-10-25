@@ -1,0 +1,9 @@
+node_modules/
+web/node_modules/
+dist/
+public/
+bin/
+data/
+.env
+*.log
+/tmp/

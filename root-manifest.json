@@ -1,0 +1,11 @@
+{
+  "id": "mulyo-music-bot",
+  "version": "1.0.0",
+  "package": {
+    "server": {
+      "launch": "dist/main.js",
+      "deploy": ["dist", "public"],
+      "nodeModules": ["node_modules"]
+    }
+  }
+}

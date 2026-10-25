@@ -1,0 +1,43 @@
+{
+  "name": "mulyo-root-music-bot",
+  "description": "Root Chat Music Bot with Voice Virtual Mic Audio Engine & Collaborative Web Dashboard (YouTube Music + Phase 2 Spotify)",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup:ytdlp": "node scripts/ensure-ytdlp.mjs",
+    "postinstall": "node scripts/ensure-ytdlp.mjs",
+    "build:server": "tsc",
+    "build:web": "npm --prefix web run build",
+    "build": "npm run build:server && npm run build:web",
+    "bot": "npm run build:server && rootsdk start devhost",
+    "start": "node scripts/run.mjs",
+    "dev:server": "tsc && node scripts/run.mjs",
+    "dev:web": "npm --prefix web run dev",
+    "dev": "npm run build && node scripts/run.mjs"
+  },
+  "dependencies": {
+    "@rootsdk/server-bot": "^0.21.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "ws": "^8.18.0",
+    "youtubei.js": "^18.3.0"
+  },
+  "devDependencies": {
+    "@rootsdk/dev-tools": "^0.21.3",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.8.2"
+  },
+  "allowScripts": {
+    "sqlite3@5.1.7": true,
+    "@rootsdk/dev-tools@0.21.3": true,
+    "protobufjs@7.6.6": true,
+    "utf-8-validate@6.0.6": true
+  }
+}
