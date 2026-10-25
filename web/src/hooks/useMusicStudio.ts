@@ -13,11 +13,25 @@ export interface ToastNotice {
   tone: "info" | "success" | "error";
 }
 
+// Configurable remote API base for Vercel deployment (VITE_API_URL="https://your-bot-backend.com")
+export const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+
+export function getWsUrl(): string {
+  if (API_BASE) {
+    const wsProto = API_BASE.startsWith("https:") ? "wss:" : "ws:";
+    const host = API_BASE.replace(/^https?:\/\//, "");
+    return `${wsProto}//${host}/ws`;
+  }
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}/ws`;
+}
+
 async function apiRequest<T = any>(
   url: string,
   options?: RequestInit
 ): Promise<T> {
-  const res = await fetch(url, {
+  const fullUrl = url.startsWith("http") ? url : `${API_BASE}${url}`;
+  const res = await fetch(fullUrl, {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
@@ -84,8 +98,8 @@ export function useMusicStudio() {
 
     const connect = () => {
       if (disposed) return;
-      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-      ws = new WebSocket(`${proto}//${window.location.host}/ws`);
+      const wsUrl = getWsUrl();
+      ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         setWsConnected(true);
@@ -145,7 +159,7 @@ export function useMusicStudio() {
     };
   }, []);
 
-  // Smooth 100ms progress interpolation between server ticks
+  // Smooth 50ms progress interpolation between server ticks for fluid letter sweep
   useEffect(() => {
     const id = window.setInterval(() => {
       const { pos, ts, playing } = lastSyncRef.current;
@@ -158,7 +172,7 @@ export function useMusicStudio() {
         }
         return next > prev ? next : prev;
       });
-    }, 100);
+    }, 50);
     return () => window.clearInterval(id);
   }, [state?.durationSec]);
 
@@ -440,6 +454,18 @@ export function useMusicStudio() {
     await apiRequest("/api/audio/refresh", { method: "POST" });
   }, []);
 
+  const fetchLyrics = useCallback(async (t: Track) => {
+    const params = new URLSearchParams({
+      trackId: t.id,
+      sourceId: t.sourceId,
+      title: t.title,
+      artist: t.artist,
+    });
+    if (t.album) params.set("album", t.album);
+    if (t.durationSec) params.set("duration", String(t.durationSec));
+    return apiRequest(`/api/lyrics?${params.toString()}`);
+  }, []);
+
   return {
     state,
     wsConnected,
@@ -475,6 +501,7 @@ export function useMusicStudio() {
       setLocalMonitor,
       setAudioDevice,
       refreshAudioDevices,
+      fetchLyrics,
     },
   };
 }

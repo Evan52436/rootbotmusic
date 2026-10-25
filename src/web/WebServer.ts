@@ -6,14 +6,17 @@ import express, { Request, Response } from "express";
 import { WebSocket, WebSocketServer } from "ws";
 import { config } from "../config";
 import { MusicController } from "../core/MusicController";
+import { LyricsService } from "../services/LyricsService";
 import { LoopMode, MusicSource, SearchFilter, Track } from "../types/music";
 
 export class WebServer {
   private readonly app = express();
   private readonly server: http.Server;
   private readonly wss: WebSocketServer;
+  private readonly lyricsService: LyricsService;
 
   constructor(private readonly music: MusicController) {
+    this.lyricsService = new LyricsService(this.music.providers.ytMusic);
     this.app.use(cors());
     this.app.use(express.json({ limit: "2mb" }));
 
@@ -349,7 +352,7 @@ export class WebServer {
       res.json({ ok: true, state: this.music.getState() });
     });
 
-    // Optional browser audio stream endpoint for remote Web UI listeners
+    // Stream endpoint
     this.app.get("/api/stream/:sourceId", async (req: Request, res: Response) => {
       try {
         const sourceId = String(req.params.sourceId);
@@ -357,6 +360,35 @@ export class WebServer {
           sourceId
         );
         res.redirect(direct.url);
+      } catch (err) {
+        res.status(500).json({ error: (err as Error)?.message });
+      }
+    });
+
+    // Multi-source Lyrics endpoint (Better Lyrics Portato, LRCLIB, YouTube Music)
+    this.app.get("/api/lyrics", async (req: Request, res: Response) => {
+      try {
+        const trackId = String(req.query.trackId || "");
+        const sourceId = String(req.query.sourceId || "");
+        const title = String(req.query.title || "");
+        const artist = String(req.query.artist || "");
+        const album = req.query.album ? String(req.query.album) : undefined;
+        const durationSec = req.query.duration ? Number(req.query.duration) : undefined;
+
+        if (!title && !sourceId) {
+          res.json({ source: "None", synced: false, lines: [] });
+          return;
+        }
+
+        const lyrics = await this.lyricsService.getLyrics({
+          trackId,
+          sourceId,
+          title,
+          artist,
+          album,
+          durationSec,
+        });
+        res.json(lyrics);
       } catch (err) {
         res.status(500).json({ error: (err as Error)?.message });
       }

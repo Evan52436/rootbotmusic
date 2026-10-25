@@ -1,106 +1,113 @@
 import React, { useState } from "react";
-import { Header } from "./components/Header";
+import { LyricsView } from "./components/LyricsView";
 import { NowPlayingStage } from "./components/NowPlayingStage";
-import { QueuePanel } from "./components/QueuePanel";
-import { SearchPanel } from "./components/SearchPanel";
-import { VoiceSetupModal } from "./components/VoiceSetupModal";
+import { TopSearchBar } from "./components/TopSearchBar";
+import { UpNextView } from "./components/UpNextView";
 import { useMusicStudio } from "./hooks/useMusicStudio";
 
 export const App: React.FC = () => {
   const {
     state,
-    wsConnected,
-    onlineClients,
     livePosition,
-    nickname,
-    setNickname,
-    toasts,
     actions,
   } = useMusicStudio();
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalTab, setModalTab] = useState<"audio" | "bot">("audio");
+  // Right pane tab: only "queue" or "lyrics"
+  const [rightPaneTab, setRightPaneTab] = useState<"queue" | "lyrics">("lyrics");
 
-  const openModal = (tab: "audio" | "bot") => {
-    setModalTab(tab);
-    setModalOpen(true);
+  const currentTrack = state?.currentTrack ?? null;
+  const bgArtwork = currentTrack?.thumbnailUrl;
+
+  const handleFocusSearch = () => {
+    const inputEl = document.querySelector<HTMLInputElement>(".top-search-input");
+    inputEl?.focus();
   };
 
   return (
-    <div className="app-shell">
-      <div className="bg-orb orb-1" aria-hidden="true" />
-      <div className="bg-orb orb-2" aria-hidden="true" />
+    <div className={`lyric-app-container ${currentTrack ? "has-track" : "no-track"}`}>
+      {/* Background: Heavily blurred artwork when track is playing; PLAIN WHITE when nothing is playing */}
+      {bgArtwork ? (
+        <>
+          <div
+            className="fullscreen-blurred-backdrop"
+            style={{ backgroundImage: `url(${bgArtwork})` }}
+            aria-hidden="true"
+          />
+          <div className="backdrop-subtle-overlay" aria-hidden="true" />
+        </>
+      ) : (
+        <div className="fullscreen-plain-white-backdrop" aria-hidden="true" />
+      )}
 
-      <Header
-        state={state}
-        wsConnected={wsConnected}
-        onlineClients={onlineClients}
-        nickname={nickname}
-        onChangeNickname={setNickname}
-        onOpenModal={openModal}
+      {/* Top Universal Long Search Bar */}
+      <TopSearchBar
+        onSearch={actions.searchTracks}
+        onAddTrack={actions.addTrack}
+        onImportUrl={actions.importQueryOrUrl}
       />
 
-      <main className="studio-grid">
-        <div className="studio-main-col">
+      {/* Main 2-Column Split Stage (50% / 50% in the middle) */}
+      <main className="lyric-main-stage">
+        {/* Left Pane: Artwork + Song Details Centered Horizontally */}
+        <div className="left-now-playing-pane">
           <NowPlayingStage
             state={state}
             livePosition={livePosition}
             onTogglePlay={() => void actions.togglePlayPause()}
             onSkip={() => void actions.skip()}
             onPrevious={() => void actions.previous()}
-            onStop={() => void actions.stop()}
             onSeek={(sec) => void actions.seek(sec)}
             onVolume={(vol) => void actions.setVolume(vol)}
             onMute={(muted) => void actions.setMuted(muted)}
             onCycleLoop={(mode) => void actions.setLoopMode(mode)}
-            onToggleAutoplay={(en) => void actions.setAutoplay(en)}
-            onShuffleQueue={() => void actions.shuffleQueue()}
-            onOpenAudioModal={() => openModal("audio")}
-          />
-
-          <SearchPanel
-            onSearch={actions.searchTracks}
-            onAddTrack={actions.addTrack}
-            onImportUrl={actions.importQueryOrUrl}
+            onToggleShuffle={() => void actions.shuffleQueue()}
+            onOpenSearch={handleFocusSearch}
+            onOpenQueue={() => setRightPaneTab("queue")}
           />
         </div>
 
-        <QueuePanel
-          state={state}
-          onJumpToItem={(id) => void actions.jumpToQueueItem(id)}
-          onMoveItem={(from, to) => void actions.moveQueueItem(from, to)}
-          onRemoveItem={(id) => void actions.removeQueueItem(id)}
-          onShuffle={() => void actions.shuffleQueue()}
-          onClear={() => void actions.clearQueue()}
-          onRequeueTrack={(track, now) => void actions.addTrack(track, now)}
-          onSavePlaylist={(name) => void actions.savePlaylist(name)}
-          onLoadPlaylist={(id, replace) =>
-            void actions.loadPlaylist(id, replace)
-          }
-          onDeletePlaylist={(id) => void actions.deletePlaylist(id)}
-        />
-      </main>
-
-      <VoiceSetupModal
-        open={modalOpen}
-        initialTab={modalTab}
-        state={state}
-        onClose={() => setModalOpen(false)}
-        onSetupVirtualMic={actions.setupVirtualMic}
-        onTeardownVirtualMic={actions.teardownVirtualMic}
-        onToggleMonitor={actions.setLocalMonitor}
-        onSelectDevice={actions.setAudioDevice}
-        onRefreshDevices={actions.refreshAudioDevices}
-      />
-
-      {/* Toast Stack */}
-      <div className="toast-stack" aria-live="polite">
-        {toasts.map((t) => (
-          <div key={t.id} className={`toast-item toast-${t.tone}`}>
-            {t.message}
+        {/* Right Pane: Up Next & Lyrics Tabs Selector */}
+        <div className="right-lyrics-pane">
+          <div className="right-pane-tabs-header">
+            <div className="right-pane-tabs-nav">
+              <button
+                type="button"
+                className={`pane-nav-tab ${rightPaneTab === "queue" ? "active" : ""}`}
+                onClick={() => setRightPaneTab("queue")}
+              >
+                UP NEXT
+              </button>
+              <button
+                type="button"
+                className={`pane-nav-tab ${rightPaneTab === "lyrics" ? "active" : ""}`}
+                onClick={() => setRightPaneTab("lyrics")}
+              >
+                LYRICS
+              </button>
+            </div>
           </div>
-        ))}
-      </div>
+
+          <div className="right-pane-content-body">
+            {rightPaneTab === "queue" ? (
+              <UpNextView
+                state={state}
+                onJumpToItem={(id) => void actions.jumpToQueueItem(id)}
+                onRemoveItem={(id) => void actions.removeQueueItem(id)}
+                onShuffle={() => void actions.shuffleQueue()}
+                onClear={() => void actions.clearQueue()}
+                onSavePlaylist={(name) => void actions.savePlaylist(name)}
+              />
+            ) : (
+              <LyricsView
+                track={currentTrack}
+                livePosition={livePosition}
+                onSeek={(sec) => void actions.seek(sec)}
+                fetchLyrics={actions.fetchLyrics}
+              />
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 };

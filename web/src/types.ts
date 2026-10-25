@@ -69,6 +69,18 @@ export interface ProviderStatusInfo {
   description: string;
 }
 
+export interface LyricLine {
+  time?: number;
+  text: string;
+  secondaryText?: string;
+}
+
+export interface LyricsData {
+  source: string;
+  synced: boolean;
+  lines: LyricLine[];
+}
+
 export interface PlayerState {
   status: PlaybackStatus;
   currentTrack: QueueItem | null;

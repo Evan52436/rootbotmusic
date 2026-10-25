@@ -1,24 +1,25 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Disc3,
-  ExternalLink,
-  Headphones,
+  ListMusic,
   Loader2,
-  Mic,
+  MoreVertical,
   Pause,
   Play,
   Radio,
   Repeat,
   Repeat1,
+  Search,
   Shuffle,
   SkipBack,
   SkipForward,
-  Square,
-  Volume1,
+  ThumbsDown,
+  ThumbsUp,
   Volume2,
   VolumeX,
 } from "lucide-react";
 import { LoopMode, PlayerState, formatTime } from "../types";
+import { API_BASE } from "../hooks/useMusicStudio";
 
 interface NowPlayingStageProps {
   state: PlayerState | null;
@@ -26,14 +27,13 @@ interface NowPlayingStageProps {
   onTogglePlay: () => void;
   onSkip: () => void;
   onPrevious: () => void;
-  onStop: () => void;
   onSeek: (sec: number) => void;
   onVolume: (vol: number) => void;
   onMute: (muted: boolean) => void;
   onCycleLoop: (next: LoopMode) => void;
-  onToggleAutoplay: (enabled: boolean) => void;
-  onShuffleQueue: () => void;
-  onOpenAudioModal: () => void;
+  onToggleShuffle: () => void;
+  onOpenSearch: () => void;
+  onOpenQueue: () => void;
 }
 
 export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
@@ -42,22 +42,28 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
   onTogglePlay,
   onSkip,
   onPrevious,
-  onStop,
   onSeek,
   onVolume,
   onMute,
   onCycleLoop,
-  onToggleAutoplay,
-  onShuffleQueue,
-  onOpenAudioModal,
+  onToggleShuffle,
+  onOpenSearch,
+  onOpenQueue,
 }) => {
   const [scrubValue, setScrubValue] = useState<number | null>(null);
   const [browserAudioMuted, setBrowserAudioMuted] = useState(false);
+  const [showVolumePopup, setShowVolumePopup] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [disliked, setDisliked] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const moreMenuRef = useRef<HTMLDivElement | null>(null);
 
   const track = state?.currentTrack ?? null;
   const duration = state?.durationSec || track?.durationSec || 0;
   const displayPos = scrubValue !== null ? scrubValue : livePosition;
+  const remainingSec = Math.max(0, duration - displayPos);
+
   const progressPct =
     duration > 0 ? Math.min(100, Math.max(0, (displayPos / duration) * 100)) : 0;
 
@@ -71,7 +77,51 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
     return "off";
   };
 
-  // Browser Audio is the primary output: synchronizes automatically for everyone!
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Global keyboard shortcuts for ultimate music player feel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        onTogglePlay();
+      } else if (e.key === "ArrowRight" || e.key === "n") {
+        onSkip();
+      } else if (e.key === "ArrowLeft" || e.key === "p") {
+        onPrevious();
+      } else if (e.key === "/" || e.key === "s") {
+        e.preventDefault();
+        onOpenSearch();
+      } else if (e.key === "q") {
+        e.preventDefault();
+        onOpenQueue();
+      } else if (e.key === "m") {
+        setBrowserAudioMuted((v) => !v);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onTogglePlay, onSkip, onPrevious, onOpenSearch, onOpenQueue]);
+
+  // Browser Audio playback engine: synchronizes with live server position
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
@@ -80,7 +130,7 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
       el.removeAttribute("src");
       return;
     }
-    const streamUrl = `/api/stream/${encodeURIComponent(track.sourceId)}`;
+    const streamUrl = `${API_BASE}/api/stream/${encodeURIComponent(track.sourceId)}`;
     if (el.dataset.trackId !== track.id) {
       el.dataset.trackId = track.id;
       el.src = streamUrl;
@@ -88,16 +138,13 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
         el.currentTime = livePosition;
       }
     } else {
-      // Re-align if browser audio drifts more than 2 seconds from the master timeline
       if (Math.abs(el.currentTime - livePosition) > 2) {
         el.currentTime = livePosition;
       }
     }
 
     if (isPlaying) {
-      el.play().catch(() => {
-        // Handled: Autoplay policy may require a user click on mobile browsers
-      });
+      el.play().catch(() => {});
     } else {
       el.pause();
     }
@@ -110,265 +157,293 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
     }
   }, [state?.volume, state?.muted, browserAudioMuted]);
 
-  const activeDeviceObj = state?.audioDevices.find(
-    (d) => d.id === state.audioDevice
-  );
+  const handleLike = () => {
+    setLiked((v) => !v);
+    if (!liked) setDisliked(false);
+  };
+
+  const handleDislike = () => {
+    setDisliked((v) => !v);
+    if (!disliked) {
+      setLiked(false);
+      onSkip(); // Skip to next track on dislike, like modern music players
+    }
+  };
 
   return (
-    <section className="now-playing-card">
-      {track && (
-        <div
-          className="ambient-backdrop"
-          style={{ backgroundImage: `url(${track.thumbnailUrl})` }}
-        />
-      )}
-
+    <div className="player-stage-left">
       <audio ref={audioRef} preload="none" />
 
-      <div className="np-content">
-        <div className="np-top-row">
-          <div className={`np-artwork-wrap ${isPlaying ? "spinning-glow" : ""}`}>
-            {track ? (
-              <img
-                src={track.thumbnailUrl}
-                alt={track.title}
-                className="np-artwork"
-              />
-            ) : (
-              <div className="np-artwork-placeholder">
-                <Disc3 size={48} className="idle-disc" />
+      {/* Album Artwork */}
+      <div className="artwork-display-card">
+        {track ? (
+          <img
+            src={track.thumbnailUrl}
+            alt={track.title}
+            className="artwork-image"
+          />
+        ) : (
+          <div className="artwork-placeholder-box">
+            <Disc3 size={84} className="placeholder-disc" />
+            <button
+              type="button"
+              className="quick-search-trigger-btn"
+              onClick={onOpenSearch}
+            >
+              <Search size={16} />
+              <span>Search a Song</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Song Details Row */}
+      <div className="song-details-block">
+        <div className="song-title-row">
+          <h1 className="song-title-text" title={track?.title || "No Track Playing"}>
+            {track ? track.title : "No Track Playing"}
+          </h1>
+
+          <div className="song-title-actions" ref={moreMenuRef}>
+            {/* Volume Icon Button */}
+            <button
+              type="button"
+              className={`action-icon-btn ${browserAudioMuted ? "muted" : ""}`}
+              onClick={() => setShowVolumePopup((v) => !v)}
+              title={browserAudioMuted ? "Unmute local audio" : "Volume Control"}
+            >
+              {browserAudioMuted || (state?.volume ?? 0) === 0 ? (
+                <VolumeX size={19} />
+              ) : (
+                <Volume2 size={19} />
+              )}
+            </button>
+
+            {/* More Vertical (3-dots) Menu Button */}
+            <button
+              type="button"
+              className="action-icon-btn"
+              onClick={() => setShowMoreMenu((v) => !v)}
+              title="More Options (Search, Queue, Loop)"
+            >
+              <MoreVertical size={19} />
+            </button>
+
+            {/* Volume Slider Popup */}
+            {showVolumePopup && (
+              <div className="volume-popup-card">
+                <input
+                  type="range"
+                  min={0}
+                  max={150}
+                  value={state?.volume ?? 75}
+                  onChange={(e) => onVolume(Number(e.target.value))}
+                  className="popup-volume-slider"
+                />
+                <button
+                  type="button"
+                  className="popup-mute-btn"
+                  onClick={() => setBrowserAudioMuted((v) => !v)}
+                >
+                  {browserAudioMuted ? "Unmute" : "Mute"}
+                </button>
               </div>
             )}
-            {track && (
-              <span className="source-chip ytmusic">
-                {track.source === "ytmusic" ? "YT Music" : "Spotify"}
-              </span>
+
+            {/* 3-dots Context Menu */}
+            {showMoreMenu && (
+              <div className="more-options-menu-card">
+                <button
+                  type="button"
+                  className="menu-item-btn"
+                  onClick={() => {
+                    setShowMoreMenu(false);
+                    onOpenSearch();
+                  }}
+                >
+                  <Search size={16} />
+                  <span>Search Songs & Add</span>
+                  <span className="kbd-shortcut">/</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="menu-item-btn"
+                  onClick={() => {
+                    setShowMoreMenu(false);
+                    onOpenQueue();
+                  }}
+                >
+                  <ListMusic size={16} />
+                  <span>Up Next Queue</span>
+                  {Boolean(state?.queue.length) && (
+                    <span className="menu-badge">{state?.queue.length}</span>
+                  )}
+                  <span className="kbd-shortcut">Q</span>
+                </button>
+
+                <div className="menu-divider" />
+
+                <button
+                  type="button"
+                  className="menu-item-btn"
+                  onClick={() => onCycleLoop(nextLoopMode())}
+                >
+                  {state?.loopMode === "track" ? (
+                    <Repeat1 size={16} className="active-icon" />
+                  ) : (
+                    <Repeat
+                      size={16}
+                      className={state?.loopMode === "queue" ? "active-icon" : ""}
+                    />
+                  )}
+                  <span>
+                    Loop:{" "}
+                    {state?.loopMode === "track"
+                      ? "Track"
+                      : state?.loopMode === "queue"
+                        ? "Queue"
+                        : "Off"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="menu-item-btn"
+                  onClick={() => onToggleShuffle()}
+                >
+                  <Shuffle size={16} />
+                  <span>Shuffle Queue</span>
+                </button>
+              </div>
             )}
           </div>
+        </div>
 
-          <div className="np-meta">
-            <div className="np-broadcast-row">
-              <span className="broadcast-badge live-indicator">
-                <Headphones size={13} />
-                <span>Synchronized Browser Audio (HQ Stereo)</span>
-              </span>
-
-              <button
-                type="button"
-                className={`preview-toggle ${!browserAudioMuted ? "active" : ""}`}
-                onClick={() => setBrowserAudioMuted((v) => !v)}
-                title="Mute or unmute music in your local browser tab"
-              >
-                {!browserAudioMuted ? <Volume2 size={13} /> : <VolumeX size={13} />}
-                <span>{!browserAudioMuted ? "Audio: Active" : "Audio: Muted"}</span>
-              </button>
-            </div>
-
+        <div className="song-artist-row">
+          <span className="artist-text">
             {track ? (
               <>
-                <div className="np-title-row">
-                  <h2 className="np-title" title={track.title}>
-                    {track.title}
-                  </h2>
-                  <a
-                    href={track.externalUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="external-link"
-                    title="Open on YouTube Music"
-                  >
-                    <ExternalLink size={16} />
-                  </a>
-                </div>
-                <p className="np-artist">
-                  {track.artist}
-                  {track.album ? ` • ${track.album}` : ""}
-                </p>
-                <div className="np-requester">
-                  Queued by <strong>{track.requestedBy}</strong>{" "}
-                  <span className="via-tag">
-                    via {track.requestedVia === "root-chat" ? "Root Chat" : "Web UI"}
-                  </span>
-                </div>
+                {track.artist}
+                {track.album ? ` • ${track.album}` : ""}
               </>
             ) : (
-              <div className="np-empty-copy">
-                <h2 className="np-title">Ready to Drop the Beat</h2>
-                <p className="np-artist">
-                  Search a YouTube Music song below, paste a playlist link, or type{" "}
-                  <code>{state?.rootBot.prefix || "/"}play &lt;song&gt;</code> in Root
-                  Chat.
-                </p>
-              </div>
+              "Queue a song to begin"
             )}
-
-            {state?.lastError && (
-              <div className="np-error-banner">{state.lastError}</div>
-            )}
-          </div>
-        </div>
-
-        {/* Scrubber */}
-        <div className="np-scrubber-area">
-          <span className="time-label">{formatTime(displayPos)}</span>
-          <div className="scrubber-track-wrap">
-            <input
-              type="range"
-              min={0}
-              max={duration > 0 ? duration : 100}
-              step={0.5}
-              disabled={!track || duration <= 0}
-              value={duration > 0 ? displayPos : 0}
-              onChange={(e) => setScrubValue(Number(e.target.value))}
-              onMouseUp={() => {
-                if (scrubValue !== null) {
-                  onSeek(scrubValue);
-                  setScrubValue(null);
-                }
-              }}
-              onTouchEnd={() => {
-                if (scrubValue !== null) {
-                  onSeek(scrubValue);
-                  setScrubValue(null);
-                }
-              }}
-              style={
-                {
-                  "--progress": `${progressPct}%`,
-                } as React.CSSProperties
-              }
-              className="scrubber-slider"
-              aria-label="Seek position"
-            />
-          </div>
-          <span className="time-label">{formatTime(duration)}</span>
-        </div>
-
-        {/* Transport + Volume */}
-        <div className="np-controls-bar">
-          <div className="np-secondary-controls">
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={onShuffleQueue}
-              disabled={!state?.queue.length}
-              title="Shuffle upcoming queue"
-            >
-              <Shuffle size={17} />
-            </button>
-            <button
-              type="button"
-              className={`icon-btn ${
-                state?.loopMode && state.loopMode !== "off" ? "active" : ""
-              }`}
-              onClick={() => onCycleLoop(nextLoopMode())}
-              title={`Loop mode: ${state?.loopMode || "off"}`}
-            >
-              {state?.loopMode === "track" ? (
-                <Repeat1 size={17} />
-              ) : (
-                <Repeat size={17} />
-              )}
-              {state?.loopMode === "queue" && (
-                <span className="mini-badge">Q</span>
-              )}
-            </button>
-            <button
-              type="button"
-              className={`chip-toggle ${state?.autoplay ? "active" : ""}`}
-              onClick={() => onToggleAutoplay(!state?.autoplay)}
-              title="Automatically play related YouTube Music tracks when the queue ends"
-            >
-              <Radio size={14} />
-              <span>Autoplay</span>
-            </button>
-          </div>
-
-          <div className="np-primary-controls">
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={onPrevious}
-              disabled={!track && !state?.history.length}
-              title="Previous / Restart"
-            >
-              <SkipBack size={20} />
-            </button>
-
-            <button
-              type="button"
-              className="play-fab"
-              onClick={onTogglePlay}
-              disabled={!track && !state?.queue.length}
-              title={isPlaying ? "Pause" : "Play"}
-            >
-              {isLoading ? (
-                <Loader2 size={24} className="spin" />
-              ) : isPlaying ? (
-                <Pause size={24} />
-              ) : (
-                <Play size={24} style={{ marginLeft: 2 }} />
-              )}
-            </button>
-
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={onSkip}
-              disabled={!track && !state?.queue.length}
-              title="Skip track"
-            >
-              <SkipForward size={20} />
-            </button>
-
-            <button
-              type="button"
-              className="icon-btn subtle"
-              onClick={onStop}
-              disabled={!track}
-              title="Stop playback"
-            >
-              <Square size={16} />
-            </button>
-          </div>
-
-          <div className="np-volume-controls">
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={() => onMute(!state?.muted)}
-              title={state?.muted ? "Unmute" : "Mute"}
-            >
-              {state?.muted || (state?.volume ?? 0) === 0 ? (
-                <VolumeX size={18} />
-              ) : (state?.volume ?? 75) < 50 ? (
-                <Volume1 size={18} />
-              ) : (
-                <Volume2 size={18} />
-              )}
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={150}
-              value={state?.muted ? 0 : (state?.volume ?? 75)}
-              onChange={(e) => onVolume(Number(e.target.value))}
-              className="volume-slider"
-              aria-label="Volume"
-              style={
-                {
-                  "--progress": `${
-                    ((state?.muted ? 0 : (state?.volume ?? 75)) / 150) * 100
-                  }%`,
-                } as React.CSSProperties
-              }
-            />
-            <span className="vol-pct">
-              {state?.muted ? "Muted" : `${state?.volume ?? 75}%`}
-            </span>
-          </div>
+          </span>
         </div>
       </div>
-    </section>
+
+      {/* Scrubber Timeline */}
+      <div className="scrubber-section">
+        <div className="scrubber-track-container">
+          <input
+            type="range"
+            min={0}
+            max={duration > 0 ? duration : 100}
+            step={0.5}
+            disabled={!track || duration <= 0}
+            value={duration > 0 ? displayPos : 0}
+            onChange={(e) => setScrubValue(Number(e.target.value))}
+            onMouseUp={() => {
+              if (scrubValue !== null) {
+                onSeek(scrubValue);
+                setScrubValue(null);
+              }
+            }}
+            onTouchEnd={() => {
+              if (scrubValue !== null) {
+                onSeek(scrubValue);
+                setScrubValue(null);
+              }
+            }}
+            style={
+              {
+                "--progress": `${progressPct}%`,
+              } as React.CSSProperties
+            }
+            className="sleek-scrubber-slider"
+            aria-label="Seek timeline"
+          />
+        </div>
+
+        <div className="scrubber-timestamps">
+          <span className="timestamp-text">{formatTime(displayPos)}</span>
+          <span className="timestamp-text">
+            {duration > 0 ? `-${formatTime(remainingSec)}` : "0:00"}
+          </span>
+        </div>
+      </div>
+
+      {/* Control Buttons Below Details Matching Screenshot */}
+      <div className="under-song-controls">
+        {/* Thumbs Up (Like) on far left */}
+        <button
+          type="button"
+          className={`control-secondary-btn ${liked ? "active-thumb-up" : ""}`}
+          onClick={handleLike}
+          title={liked ? "Liked" : "Like"}
+        >
+          <ThumbsUp
+            size={20}
+            fill={liked ? "#ffffff" : "none"}
+            color={liked ? "#ffffff" : "currentColor"}
+          />
+        </button>
+
+        {/* Center: Previous, Play/Pause Circle, Next */}
+        <div className="control-center-cluster">
+          <button
+            type="button"
+            className="control-nav-btn"
+            onClick={onPrevious}
+            disabled={!track}
+            title="Previous (P / Left)"
+          >
+            <SkipBack size={22} fill="currentColor" />
+          </button>
+
+          <button
+            type="button"
+            className="control-play-circle-btn"
+            onClick={onTogglePlay}
+            disabled={!track && !state?.queue.length}
+            title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+          >
+            {isLoading ? (
+              <Loader2 size={24} className="spin" color="#000000" />
+            ) : isPlaying ? (
+              <Pause size={24} fill="#000000" color="#000000" />
+            ) : (
+              <Play size={24} fill="#000000" color="#000000" style={{ marginLeft: 3 }} />
+            )}
+          </button>
+
+          <button
+            type="button"
+            className="control-nav-btn"
+            onClick={onSkip}
+            disabled={!track && !state?.queue.length}
+            title="Next Track (N / Right)"
+          >
+            <SkipForward size={22} fill="currentColor" />
+          </button>
+        </div>
+
+        {/* Thumbs Down (Dislike / Skip) on far right */}
+        <button
+          type="button"
+          className={`control-secondary-btn ${disliked ? "active-thumb-down" : ""}`}
+          onClick={handleDislike}
+          title={disliked ? "Disliked" : "Dislike & Skip"}
+        >
+          <ThumbsDown
+            size={20}
+            fill={disliked ? "#ffffff" : "none"}
+            color={disliked ? "#ffffff" : "currentColor"}
+          />
+        </button>
+      </div>
+    </div>
   );
 };
