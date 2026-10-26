@@ -305,9 +305,16 @@ export class YouTubeMusicProvider implements IMusicProvider {
   }
 
   public async getStreamSource(track: Track): Promise<StreamSource> {
-    return {
-      inputUrl: `https://www.youtube.com/watch?v=${track.sourceId}`,
-    };
+    try {
+      const direct = await this.resolveDirectAudioUrl(track.sourceId);
+      return {
+        inputUrl: direct.url,
+      };
+    } catch {
+      return {
+        inputUrl: `https://www.youtube.com/watch?v=${track.sourceId}`,
+      };
+    }
   }
 
   public async resolveDirectAudioUrl(

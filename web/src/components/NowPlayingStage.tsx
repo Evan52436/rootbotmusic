@@ -75,8 +75,6 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
 
   const isPlaying = state?.status === "playing";
   const isLoading = state?.status === "loading";
-  const isPaused = state?.status === "paused";
-  const shouldPlay = isPlaying || isLoading;
 
   const nextLoopMode = (): LoopMode => {
     const cur = state?.loopMode || "off";
@@ -142,7 +140,7 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
         } catch {}
       }
 
-      if (forcePlay || shouldPlay) {
+      if (forcePlay || isPlaying) {
         el.play()
           .then(() => {
             setAudioUnlocked(true);
@@ -154,15 +152,15 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
           });
       }
     },
-    [track, shouldPlay]
+    [track, isPlaying]
   );
 
-  // Global user interaction listener: unlocks audio and starts playback whenever user clicks/types
+  // Global user interaction listener: marks audio unlocked whenever user interacts
   useEffect(() => {
     const handleUserInteraction = () => {
       setAudioUnlocked(true);
       const el = audioRef.current;
-      if (el && shouldPlay && el.paused) {
+      if (el && isPlaying && el.paused) {
         syncAudioToLive(true);
       }
     };
@@ -174,9 +172,9 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
       window.removeEventListener("pointerdown", handleUserInteraction);
       window.removeEventListener("keydown", handleUserInteraction);
     };
-  }, [shouldPlay, syncAudioToLive]);
+  }, [isPlaying, syncAudioToLive]);
 
-  // Track change handler: automatically starts playing as soon as media can play
+  // Track change handler: prepares media stream and waits for server 'playing' status
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
@@ -196,38 +194,41 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
       el.preload = "auto";
 
       const onCanPlay = () => {
-        if (!isPaused) {
+        if (isPlaying) {
           syncAudioToLive(true);
         }
       };
 
       el.addEventListener("canplay", onCanPlay, { once: true });
       el.load();
-
-      // Attempt immediate play if user already clicked/interacted
-      if (!isPaused) {
-        el.play()
-          .then(() => setAudioUnlocked(true))
-          .catch(() => {});
-      }
     }
-  }, [track?.id, isPaused, syncAudioToLive]);
+  }, [track?.id, isPlaying, syncAudioToLive]);
 
-  // Handle play / pause transitions without interrupting stream buffering
+  // Handle play / pause transitions in lockstep with the server
   useEffect(() => {
     const el = audioRef.current;
     if (!el || !track) return;
 
-    if (shouldPlay) {
+    if (isPlaying) {
       if (el.paused) {
         syncAudioToLive(true);
       }
-    } else if (isPaused) {
+    } else {
       if (!el.paused) {
         el.pause();
       }
     }
-  }, [shouldPlay, isPaused, track?.id, syncAudioToLive]);
+  }, [isPlaying, track?.id, syncAudioToLive]);
+
+  // Immediate seek alignment when server positionSec jumps significantly (e.g. user seeks)
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !isPlaying || !track || el.readyState < 2) return;
+    const serverPos = state?.positionSec ?? 0;
+    if (Math.abs(el.currentTime - serverPos) > 1.5) {
+      el.currentTime = serverPos;
+    }
+  }, [state?.positionSec, isPlaying, track]);
 
   // Periodic drift correction every 2.5 seconds (prevents drift over time without 100ms jitter)
   useEffect(() => {

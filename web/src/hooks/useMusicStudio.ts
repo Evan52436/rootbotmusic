@@ -161,7 +161,7 @@ export function useMusicStudio() {
 
       ws.onclose = () => {
         setWsConnected(false);
-        if (!disposed && API_BASE) {
+        if (!disposed) {
           reconnectTimer = window.setTimeout(connect, 2500);
         }
       };

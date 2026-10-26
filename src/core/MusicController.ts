@@ -68,6 +68,7 @@ export class MusicController extends EventEmitter {
   private readonly stateFilePath: string;
   private preferredAudioDevice = "";
   private lastProgressEmitMs = 0;
+  private lastPositionEventMs = 0;
 
   constructor() {
     super();
@@ -128,6 +129,7 @@ export class MusicController extends EventEmitter {
   private bindPlayerEvents(): void {
     this.player.on("position", (pos: number) => {
       this.positionSec = pos;
+      this.lastPositionEventMs = Date.now();
       const now = Date.now();
       if (now - this.lastProgressEmitMs >= 250) {
         this.lastProgressEmitMs = now;
@@ -138,6 +140,30 @@ export class MusicController extends EventEmitter {
         });
       }
     });
+
+    // Heartbeat clock: ensures the room timeline advances seamlessly even if hardware audio driver has jitter
+    setInterval(() => {
+      if (this.status === "playing" && this.currentTrack) {
+        const now = Date.now();
+        if (now - this.lastPositionEventMs > 1000) {
+          this.positionSec = Math.min(
+            this.durationSec || Infinity,
+            Math.round((this.positionSec + 0.25) * 100) / 100
+          );
+          this.emit("progress", {
+            positionSec: this.positionSec,
+            durationSec: this.durationSec,
+            status: this.status,
+          });
+          if (
+            this.durationSec > 0 &&
+            this.positionSec >= this.durationSec - 0.25
+          ) {
+            void this.handleTrackFinished();
+          }
+        }
+      }
+    }, 250);
 
     this.player.on("duration", (dur: number) => {
       if (dur > 0 && Math.abs(dur - this.durationSec) > 0.5) {

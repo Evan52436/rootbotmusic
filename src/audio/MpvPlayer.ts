@@ -88,6 +88,7 @@ export class MpvPlayer extends EventEmitter {
       "--no-terminal",
       "--force-window=no",
       `--input-ipc-server=${this.socketPath}`,
+      "--ao=pulse,pipewire,alsa,null",
       `--script-opts=ytdl_hook-ytdl_path=${config.ytDlpBin}`,
       "--ytdl-format=bestaudio[acodec=opus]/bestaudio[ext=m4a]/bestaudio/best",
       "--audio-client-name=MulyoMusicBot",
