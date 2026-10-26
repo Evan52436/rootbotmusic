@@ -75,6 +75,8 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
 
   const isPlaying = state?.status === "playing";
   const isLoading = state?.status === "loading";
+  const isPaused = state?.status === "paused";
+  const shouldPlay = isPlaying || isLoading;
 
   const nextLoopMode = (): LoopMode => {
     const cur = state?.loopMode || "off";
@@ -140,7 +142,7 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
         } catch {}
       }
 
-      if (forcePlay || isPlaying) {
+      if (forcePlay || shouldPlay) {
         el.play()
           .then(() => {
             setAudioUnlocked(true);
@@ -152,27 +154,29 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
           });
       }
     },
-    [track, isPlaying]
+    [track, shouldPlay]
   );
 
-  // Global one-click gesture unlocker when audio is blocked by browser autoplay policy
+  // Global user interaction listener: unlocks audio and starts playback whenever user clicks/types
   useEffect(() => {
-    if (audioUnlocked || !isPlaying) return;
-
-    const unlock = () => {
-      syncAudioToLive(true);
+    const handleUserInteraction = () => {
+      setAudioUnlocked(true);
+      const el = audioRef.current;
+      if (el && shouldPlay && el.paused) {
+        syncAudioToLive(true);
+      }
     };
 
-    window.addEventListener("pointerdown", unlock, { once: true });
-    window.addEventListener("keydown", unlock, { once: true });
+    window.addEventListener("pointerdown", handleUserInteraction);
+    window.addEventListener("keydown", handleUserInteraction);
 
     return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("pointerdown", handleUserInteraction);
+      window.removeEventListener("keydown", handleUserInteraction);
     };
-  }, [audioUnlocked, isPlaying, syncAudioToLive]);
+  }, [shouldPlay, syncAudioToLive]);
 
-  // Track change handler
+  // Track change handler: automatically starts playing as soon as media can play
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
@@ -192,29 +196,38 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
       el.preload = "auto";
 
       const onCanPlay = () => {
-        syncAudioToLive(isPlaying);
+        if (!isPaused) {
+          syncAudioToLive(true);
+        }
       };
 
       el.addEventListener("canplay", onCanPlay, { once: true });
       el.load();
+
+      // Attempt immediate play if user already clicked/interacted
+      if (!isPaused) {
+        el.play()
+          .then(() => setAudioUnlocked(true))
+          .catch(() => {});
+      }
     }
-  }, [track?.id, isPlaying, syncAudioToLive]);
+  }, [track?.id, isPaused, syncAudioToLive]);
 
   // Handle play / pause transitions without interrupting stream buffering
   useEffect(() => {
     const el = audioRef.current;
     if (!el || !track) return;
 
-    if (isPlaying) {
+    if (shouldPlay) {
       if (el.paused) {
-        syncAudioToLive(false);
+        syncAudioToLive(true);
       }
-    } else {
+    } else if (isPaused) {
       if (!el.paused) {
         el.pause();
       }
     }
-  }, [isPlaying, track?.id, syncAudioToLive]);
+  }, [shouldPlay, isPaused, track?.id, syncAudioToLive]);
 
   // Periodic drift correction every 2.5 seconds (prevents drift over time without 100ms jitter)
   useEffect(() => {
@@ -525,22 +538,12 @@ export const NowPlayingStage: React.FC<NowPlayingStageProps> = ({
             className="control-play-circle-btn"
             onClick={handlePlayPauseClick}
             disabled={!track && !state?.queue?.length}
-            title={
-              isPlaying
-                ? audioUnlocked
-                  ? "Pause (Space)"
-                  : "Tap to Listen in Sync"
-                : "Play (Space)"
-            }
+            title={isPlaying ? "Pause (Space)" : "Play (Space)"}
           >
             {isLoading ? (
               <Loader2 size={24} className="spin" color="#000000" />
             ) : isPlaying ? (
-              audioUnlocked ? (
-                <Pause size={24} fill="#000000" color="#000000" />
-              ) : (
-                <Volume2 size={24} fill="#000000" color="#000000" />
-              )
+              <Pause size={24} fill="#000000" color="#000000" />
             ) : (
               <Play size={24} fill="#000000" color="#000000" style={{ marginLeft: 3 }} />
             )}
