@@ -1,0 +1,61 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: # Allows manual trigger button from GitHub Actions tab
+
+jobs:
+  # ============================================================
+  # STAGE 1: Continuous Integration (CI)
+  # Runs on GitHub's cloud servers (ubuntu-latest).
+  # Verifies that every commit compiles and builds with zero errors.
+  # ============================================================
+  verify:
+    name: "CI: Typecheck & Build"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm --prefix web ci
+
+      - name: Compile TypeScript & Build Frontend
+        run: npm run build
+
+  # ============================================================
+  # STAGE 2: Continuous Deployment (CD)
+  # Runs on your Homelab server (Dell Wyse) via GitHub Runner.
+  # Executes ONLY if Stage 1 (verify) succeeds!
+  # ============================================================
+  deploy:
+    name: "CD: Deploy to Homelab Server"
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: self-hosted
+
+    steps:
+      - name: Update server and restart service
+        run: |
+          echo "🚀 Starting automated deployment..."
+          cd ~/Project-IDE/nginx-dashboard/rootbotmusic
+          git fetch origin main
+          git reset --hard origin/main
+          npm install
+          npm --prefix web install
+          npm run build
+          sudo systemctl restart mulyo
+          echo "✅ Deployment finished successfully! Mulyo is running live."
